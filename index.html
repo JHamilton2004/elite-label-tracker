@@ -4,6 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Elite Label Tracker</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Global variables (provided by Canvas environment)
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // Expose to global scope for easier access in the main script
+    window.firebaseApp = app;
+    window.firebaseDb = db;
+    window.firebaseAuth = auth;
+    window.firebaseOnAuthStateChanged = onAuthStateChanged; // EXPOSED onAuthStateChanged
+    window.appId = appId;
+    window.initialAuthToken = initialAuthToken;
+    window.firebaseFirestore = { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch };
+  </script>
   <style>
     /* Default Light Theme */
     body {
@@ -43,6 +67,7 @@
       backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(255, 255, 255, 0.2);
       margin-bottom: 30px;
+      position: relative; /* For user-info positioning */
     }
 
     .main-title {
@@ -82,6 +107,23 @@
       border: 1px solid rgba(255, 255, 255, 0.3);
       color: var(--text);
       backdrop-filter: blur(10px);
+    }
+
+    .user-info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 10px 15px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .container {
@@ -212,6 +254,7 @@
       display: flex;
       gap: 15px;
       margin-top: 25px;
+      flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
     }
 
     .btn-secondary {
@@ -220,6 +263,14 @@
 
     .btn-secondary:hover {
       background: #4b5563;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
     }
 
     /* Priority Board Styles */
@@ -237,6 +288,9 @@
       min-height: 400px;
       border: 2px dashed rgba(255, 255, 255, 0.2);
       transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch; /* Stretch items to fill column width */
     }
 
     .priority-column.drag-over {
@@ -250,22 +304,23 @@
       margin: 0 0 20px 0;
       padding: 15px;
       border-radius: 10px;
-      font-weight: 700;
-      font-size: 1.1rem;
+      font-weight: 800; /* Bolder */
+      font-size: 1.3rem; /* Larger */
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.2); /* Add shadow for pop */
     }
 
     .high-priority-col h3 {
-      background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+      background: linear-gradient(135deg, #e74c3c, #c0392b); /* Stronger red */
       color: white;
     }
 
     .medium-priority-col h3 {
-      background: linear-gradient(135deg, #ffa726, #ff9800);
+      background: linear-gradient(135deg, #f39c12, #e67e22); /* Stronger orange */
       color: white;
     }
 
     .low-priority-col h3 {
-      background: linear-gradient(135deg, #66bb6a, #4caf50);
+      background: linear-gradient(135deg, #2ecc71, #27ae60); /* Stronger green */
       color: white;
     }
 
@@ -301,28 +356,38 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
+      font-size: 0.95rem; /* Slightly larger for readability */
     }
 
     .card-company {
       font-weight: 700;
-      font-size: 1rem;
+      font-size: 1.05rem; /* Slightly larger */
+      color: var(--accent); /* Make company name stand out */
     }
 
     .card-date {
-      font-size: 0.85rem;
-      opacity: 0.7;
+      font-size: 0.8rem;
+      opacity: 0.8;
+      font-weight: 500;
     }
 
     .card-product {
       font-weight: 600;
-      color: var(--accent);
+      color: var(--text); /* Use text color, not accent, for product code */
       margin-bottom: 8px;
+    }
+
+    .card-last-updated {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        margin-top: 10px;
+        text-align: right;
     }
 
     /* Filter Styles */
     .filters {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid; /* Use grid for better alignment */
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* Responsive columns */
       gap: 15px;
       margin-bottom: 25px;
       padding: 20px;
@@ -331,18 +396,52 @@
       align-items: center;
     }
 
-    .filters select {
-      width: auto;
-      min-width: 180px;
-      margin-top: 0;
+    .filter-item {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        position: relative; /* For clear button positioning */
     }
 
-    .filters label {
+    .filter-item label {
+        margin-top: 0;
+        font-weight: 600;
+        color: var(--text);
+        font-size: 0.95rem;
+    }
+
+    .filters select, .filters input[type="text"] {
+      width: 100%; /* Make them fill the grid column */
       margin-top: 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 600;
+      padding-right: 30px; /* Space for clear button */
+    }
+
+    .clear-filter-btn {
+        position: absolute;
+        right: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text);
+        font-size: 1.2em;
+        cursor: pointer;
+        padding: 5px;
+        line-height: 1;
+        opacity: 0.7;
+        transition: opacity 0.2s ease;
+    }
+
+    .clear-filter-btn:hover {
+        opacity: 1;
+        color: var(--danger);
+    }
+
+    /* Multi-select styling */
+    .filters select[multiple] {
+        height: auto; /* Allow height to adjust based on options */
+        min-height: 40px; /* Minimum height */
+        padding-bottom: 5px; /* Adjust padding for multiple selections */
     }
 
     /* Label Cards in List View */
@@ -370,17 +469,17 @@
       margin-top: 8px;
     }
 
-    .high-priority { 
-      background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-      color: white; 
+    .high-priority {
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      color: white;
     }
-    .medium-priority { 
-      background: linear-gradient(135deg, #ffa726, #ff9800);
-      color: white; 
+    .medium-priority {
+      background: linear-gradient(135deg, #f39c12, #e67e22);
+      color: white;
     }
-    .low-priority { 
-      background: linear-gradient(135deg, #66bb6a, #4caf50);
-      color: white; 
+    .low-priority {
+      background: linear-gradient(135deg, #2ecc71, #27ae60);
+      color: white;
     }
 
     .editBtn, .deleteBtn {
@@ -444,23 +543,139 @@
       box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);
     }
 
+    /* Custom Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .modal-overlay.visible {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal-content {
+        background: var(--card-bg);
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        max-width: 400px;
+        width: 90%;
+        transform: translateY(-20px);
+        transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.visible .modal-content {
+        transform: translateY(0);
+    }
+
+    .modal-content h3 {
+        margin-top: 0;
+        font-size: 1.5rem;
+        color: var(--text);
+    }
+
+    .modal-content p {
+        margin-bottom: 25px;
+        color: var(--text);
+        opacity: 0.8;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+    }
+
+    .modal-actions button {
+        margin-top: 0; /* Override default button margin */
+        padding: 10px 20px;
+        font-size: 1rem;
+    }
+
+    /* Loading Indicator */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 1.5rem;
+        z-index: 3000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .loading-overlay.visible {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid #fff;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+
     /* Responsive Design */
     @media (max-width: 768px) {
       .main-title {
         font-size: 2.5rem;
       }
-      
+
       .form-grid {
         grid-template-columns: 1fr;
       }
-      
+
       .priority-board {
         grid-template-columns: 1fr;
       }
-      
+
       .container {
         margin: 10px;
         padding: 20px;
+      }
+
+      .filters {
+        grid-template-columns: 1fr; /* Stack filters on small screens */
+      }
+
+      .user-info {
+        position: static;
+        margin-top: 15px;
+        text-align: center;
+        width: 100%;
+        justify-content: center;
+        padding: 8px 10px;
       }
     }
   </style>
@@ -471,6 +686,9 @@
   </div>
 
   <header class="main-header">
+    <div class="user-info" id="userInfo">
+      <span role="img" aria-label="user icon">👤</span> User ID: <span id="currentUserId">Loading...</span>
+    </div>
     <h1 class="main-title">🏷️ Elite Label Tracker</h1>
     <p class="main-subtitle">✨ Professional Label Management System ✨</p>
   </header>
@@ -571,24 +789,44 @@
       <h2>📋 Saved Labels & Filters</h2>
 
       <div class="filters">
-        <select id="filterCompany">
-          <option value="">Filter by Company</option>
-        </select>
+        <div class="filter-item">
+            <label for="searchLabels">🔍 Search Labels</label>
+            <input type="text" id="searchLabels" placeholder="Search by company, product, notes...">
+            <button class="clear-filter-btn" data-filter-id="searchLabels">✖️</button>
+        </div>
 
-        <select id="filterMonth" multiple>
-          </select>
+        <div class="filter-item">
+            <label for="filterCompany">🏢 Filter by Company</label>
+            <select id="filterCompany">
+              <option value="">All Companies</option>
+            </select>
+            <button class="clear-filter-btn" data-filter-id="filterCompany">✖️</button>
+        </div>
 
-        <select id="filterStatus">
-          <option value="">Filter by Priority</option>
-          <option value="High Priority">High Priority</option>
-          <option value="Medium Priority">Medium Priority</option>
-          <option value="Low Priority">Low Priority</option>
-        </select>
+        <div class="filter-item">
+            <label for="filterMonth">📅 Filter by Month</label>
+            <select id="filterMonth" multiple size="3"> </select>
+            <button class="clear-filter-btn" data-filter-id="filterMonth">✖️</button>
+        </div>
 
-        <label><input type="checkbox" id="groupByToggle" /> Group by Month & Company</label>
+        <div class="filter-item">
+            <label for="filterStatus">⭐ Filter by Priority</label>
+            <select id="filterStatus">
+              <option value="">All Priorities</option>
+              <option value="High Priority">High Priority</option>
+              <option value="Medium Priority">Medium Priority</option>
+              <option value="Low Priority">Low Priority</option>
+            </select>
+            <button class="clear-filter-btn" data-filter-id="filterStatus">✖️</button>
+        </div>
+
+        <div class="filter-item" style="grid-column: span 1 / auto; align-self: flex-end;">
+          <label><input type="checkbox" id="groupByToggle" /> Group by Month & Company</label>
+        </div>
       </div>
 
       <div id="labelPreview" class="label-preview"></div>
+      <button id="clearAllLabelsBtn" class="btn-danger" style="margin-top: 30px;">🗑️ Clear All Labels</button>
     </div>
 
     <div id="priority-board" class="tab-content">
@@ -607,59 +845,47 @@
     </div>
   </div>
 
-  <script>
+  <div id="confirmationModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 id="modalTitle">Confirm Action</h3>
+      <p id="modalMessage">Are you sure you want to proceed?</p>
+      <div class="modal-actions">
+        <button id="modalConfirmBtn" class="btn-danger">Confirm</button>
+        <button id="modalCancelBtn" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <p id="loadingMessage">Loading labels...</p>
+  </div>
+
+  <script type="module">
+    // Access Firebase globals exposed by the first script tag
+    const app = window.firebaseApp;
+    const db = window.firebaseDb;
+    const auth = window.firebaseAuth;
+    const onAuthStateChanged = window.firebaseOnAuthStateChanged; // RETRIEVED onAuthStateChanged
+    const appId = window.appId;
+    const initialAuthToken = window.initialAuthToken;
+    const { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch } = window.firebaseFirestore;
+
     console.log("✅ App loaded!");
 
-    // Simulated database using in-memory storage (since localStorage isn't available)
-    let labelsDatabase = [
-      {
-        id: "1",
-        company: "AJ Power",
-        date: "2025-05-15",
-        productCode: "AJP-001",
-        batchNumber: "B2025001",
-        serialRange: "1000-1099",
-        rev: "Rev A",
-        cn: "CN001",
-        weekNumber: "20",
-        quantity: "100",
-        printedBy: "John Doe",
-        notes: "Sample label for testing",
-        status: "High Priority"
-      },
-      {
-        id: "2",
-        company: "Andor",
-        date: "2025-05-10",
-        productCode: "AND-002",
-        batchNumber: "B2025002",
-        serialRange: "2000-2049",
-        rev: "Rev B",
-        cn: "CN002",
-        weekNumber: "19",
-        quantity: "50",
-        printedBy: "Jane Smith",
-        notes: "Production batch",
-        status: "Medium Priority"
-      },
-      {
-        id: "3",
-        company: "Caterpillar",
-        date: "2025-05-20",
-        productCode: "CAT-005",
-        batchNumber: "B2025003",
-        serialRange: "3000-3050",
-        rev: "Rev C",
-        cn: "CN003",
-        weekNumber: "21",
-        quantity: "75",
-        printedBy: "Mike Ross",
-        notes: "New product line",
-        status: "Low Priority"
-      }
-    ];
+    let labelsDatabase = []; // Will be populated from Firestore
+    let currentUserId = null; // To store the authenticated user ID
 
-    let nextId = 4; // Updated nextId after adding more sample data
+    // Firestore Collection Reference
+    // Storing data in a public collection for multi-user visibility
+    const getLabelsCollectionRef = () => {
+        if (!currentUserId) {
+            console.error("User ID not available yet for Firestore operations.");
+            return null;
+        }
+        // Public data path: /artifacts/{appId}/public/data/{your_collection_name}
+        return collection(db, `artifacts/${appId}/public/data/labels`);
+    };
 
     const formIds = [
       "company", "date", "productCode", "batchNumber", "serialRange", "rev",
@@ -686,7 +912,6 @@
       if (editModeElement) {
         editModeElement.value = data.id || "";
       }
-      // Set status dropdown to match the label's status
       const statusElement = document.getElementById("status");
       if (statusElement && data.status) {
         statusElement.value = data.status;
@@ -704,19 +929,17 @@
       if (editModeElement) {
         editModeElement.value = "";
       }
-      
-      // Set default date to today
+
       const dateElement = document.getElementById("date");
       if (dateElement) {
         dateElement.valueAsDate = new Date();
       }
 
-      // Set default status to High Priority
       const statusElement = document.getElementById("status");
       if (statusElement) {
         statusElement.value = "High Priority";
       }
-      
+
       showMessage("");
     };
 
@@ -726,77 +949,173 @@
         el.textContent = msg;
         el.className = isError ? "message-error" : "message-success";
         if (msg) {
-          setTimeout(() => { 
-            el.textContent = ""; 
+          setTimeout(() => {
+            el.textContent = "";
             el.className = "";
           }, 4000);
         }
       }
     }
 
-    function saveLabel() {
+    function showLoading(message = "Loading...") {
+        const loadingOverlay = document.getElementById("loadingOverlay");
+        const loadingMessage = document.getElementById("loadingMessage");
+        if (loadingOverlay && loadingMessage) {
+            loadingMessage.textContent = message;
+            loadingOverlay.classList.add("visible");
+        }
+    }
+
+    function hideLoading() {
+        const loadingOverlay = document.getElementById("loadingOverlay");
+        if (loadingOverlay) {
+            loadingOverlay.classList.remove("visible");
+        }
+    }
+
+    // Custom Confirmation Modal Logic
+    let resolveModalPromise;
+    function showConfirmationModal(title, message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById("confirmationModal");
+            const modalTitle = document.getElementById("modalTitle");
+            const modalMessage = document.getElementById("modalMessage");
+            const modalConfirmBtn = document.getElementById("modalConfirmBtn");
+            const modalCancelBtn = document.getElementById("modalCancelBtn");
+
+            if (modal && modalTitle && modalMessage && modalConfirmBtn && modalCancelBtn) {
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+                modal.classList.add("visible");
+
+                const confirmHandler = () => {
+                    modal.classList.remove("visible");
+                    modalConfirmBtn.removeEventListener("click", confirmHandler);
+                    modalCancelBtn.removeEventListener("click", cancelHandler);
+                    resolve(true);
+                };
+
+                const cancelHandler = () => {
+                    modal.classList.remove("visible");
+                    modalConfirmBtn.removeEventListener("click", confirmHandler);
+                    modalCancelBtn.removeEventListener("click", cancelHandler);
+                    resolve(false);
+                };
+
+                modalConfirmBtn.addEventListener("click", confirmHandler);
+                modalCancelBtn.addEventListener("click", cancelHandler);
+            } else {
+                // Fallback if modal elements are not found (shouldn't happen)
+                console.warn("Modal elements not found, falling back to browser confirm.");
+                resolve(window.confirm(message));
+            }
+        });
+    }
+
+
+    async function saveLabel() {
       const data = getFormData();
-      
-      // Validation
+
       if (!data.company || !data.date || !data.productCode) {
         showMessage("Company, Date, and Product Code are required.", true);
         return;
       }
 
       const editId = document.getElementById("editMode").value;
-      
+      const labelsColRef = getLabelsCollectionRef();
+      if (!labelsColRef) return;
+
+      showLoading("Saving label...");
       try {
+        const timestamp = new Date().toISOString(); // Add a timestamp
+
         if (editId) {
-          // Update existing label
-          const index = labelsDatabase.findIndex(label => label.id === editId);
-          if (index !== -1) {
-            labelsDatabase[index] = { ...labelsDatabase[index], ...data };
-            showMessage("Label updated!");
-          } else {
-            showMessage("Label not found for update.", true);
-            return;
-          }
+          // Update existing label in Firestore
+          const labelDocRef = doc(labelsColRef, editId);
+          await updateDoc(labelDocRef, { ...data, lastUpdated: timestamp });
+          showMessage("Label updated!");
         } else {
-          // Add new label
-          const newLabel = { id: nextId.toString(), ...data };
-          labelsDatabase.push(newLabel);
-          nextId++;
+          // Add new label to Firestore
+          await addDoc(labelsColRef, { ...data, lastUpdated: timestamp });
           showMessage("Label saved!");
         }
-        
+
         clearForm();
-        renderAllViews(); // Render both views after saving
+        // renderAllViews will be called by the onSnapshot listener
       } catch (e) {
         showMessage("Error saving label: " + e.message, true);
-        console.error(e);
+        console.error("Error saving label:", e);
+      } finally {
+        hideLoading();
       }
     }
 
-    function deleteLabel(id) {
-      if (confirm("Are you sure you want to delete this label?")) {
-        try {
-          const index = labelsDatabase.findIndex(label => label.id === id);
-          if (index !== -1) {
-            labelsDatabase.splice(index, 1);
-            showMessage("Label deleted!");
-            renderAllViews(); // Render both views after deleting
-          } else {
-            showMessage("Label not found for deletion.", true);
-          }
-        } catch (e) {
-          showMessage("Error deleting label: " + e.message, true);
-          console.error(e);
-        }
+    async function deleteLabel(id) {
+      const confirmed = await showConfirmationModal("Delete Label", "Are you sure you want to delete this label?");
+      if (!confirmed) return;
+
+      const labelsColRef = getLabelsCollectionRef();
+      if (!labelsColRef) return;
+
+      showLoading("Deleting label...");
+      try {
+        const labelDocRef = doc(labelsColRef, id);
+        await deleteDoc(labelDocRef);
+        showMessage("Label deleted!");
+        // renderAllViews will be called by the onSnapshot listener
+      } catch (e) {
+        showMessage("Error deleting label: " + e.message, true);
+        console.error("Error deleting label:", e);
+      } finally {
+        hideLoading();
       }
+    }
+
+    async function clearAllLabels() {
+        const confirmed = await showConfirmationModal(
+            "Clear All Labels",
+            "This will permanently delete ALL labels. Are you absolutely sure?"
+        );
+        if (!confirmed) return;
+
+        const labelsColRef = getLabelsCollectionRef();
+        if (!labelsColRef) return;
+
+        showLoading("Clearing all labels...");
+        try {
+            const q = query(labelsColRef);
+            const querySnapshot = await getDocs(q);
+            const batch = writeBatch(db);
+
+            querySnapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+
+            await batch.commit();
+            showMessage("All labels cleared!");
+        } catch (e) {
+            showMessage("Error clearing all labels: " + e.message, true);
+            console.error("Error clearing all labels:", e);
+        } finally {
+            hideLoading();
+        }
     }
 
     function generateMonthOptions() {
       const dropdown = document.getElementById("filterMonth");
       if (!dropdown) return;
-      
-      const months = [...new Set(labelsDatabase.map(label => label.date.slice(0, 7)))];
-      dropdown.innerHTML = '<option value="">Filter by Month</option>';
-      months.sort().forEach(month => {
+
+      // Ensure that only valid dates are used for month generation
+      const validLabels = labelsDatabase.filter(label => label.date && !isNaN(new Date(label.date)));
+      const months = [...new Set(validLabels.map(label => label.date.slice(0, 7)))];
+      // Sort months chronologically
+      months.sort();
+
+      // Clear existing options, but keep the default "All Months" if it was there
+      // For multiple select, we don't need a default "All" option in the list itself.
+      dropdown.innerHTML = ''; // Clear all options
+
+      months.forEach(month => {
         const opt = document.createElement("option");
         opt.value = month;
         opt.textContent = month;
@@ -807,9 +1126,9 @@
     function generateCompanyOptions() {
       const dropdown = document.getElementById("filterCompany");
       if (!dropdown) return;
-      
+
       const companies = [...new Set(labelsDatabase.map(label => label.company))];
-      dropdown.innerHTML = '<option value="">Filter by Company</option>';
+      dropdown.innerHTML = '<option value="">All Companies</option>';
       companies.sort().forEach(company => {
         const opt = document.createElement("option");
         opt.value = company;
@@ -821,37 +1140,50 @@
     function renderLabels() {
       const preview = document.getElementById("labelPreview");
       if (!preview) return;
-      
+
       const groupBy = document.getElementById("groupByToggle")?.checked || false;
       const filterCompany = document.getElementById("filterCompany")?.value || "";
       const filterStatus = document.getElementById("filterStatus")?.value || "";
       const filterMonthSelect = document.getElementById("filterMonth");
-      const filterMonths = filterMonthSelect ? 
+      const filterMonths = filterMonthSelect ?
         Array.from(filterMonthSelect.selectedOptions).map(opt => opt.value) : [];
+      const searchTerm = document.getElementById("searchLabels")?.value.toLowerCase() || "";
 
-      // Filter labels
-      let labels = labelsDatabase.filter(l => 
+
+      let labels = labelsDatabase.filter(l =>
         (!filterCompany || l.company === filterCompany) &&
         (!filterStatus || l.status === filterStatus) &&
-        (!filterMonths.length || filterMonths.includes(l.date.slice(0, 7)))
+        (!filterMonths.length || (l.date && filterMonths.includes(l.date.slice(0, 7)))) &&
+        // Search filter logic
+        (!searchTerm ||
+            l.company.toLowerCase().includes(searchTerm) ||
+            l.productCode.toLowerCase().includes(searchTerm) ||
+            l.notes.toLowerCase().includes(searchTerm) ||
+            l.batchNumber.toLowerCase().includes(searchTerm) ||
+            l.serialRange.toLowerCase().includes(searchTerm)
+        )
       );
 
-      // Sort by date (newest first)
-      labels.sort((a, b) => new Date(b.date) - new Date(a.date));
+      // Sort by date (newest first), then by company
+      labels.sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        if (dateA < dateB) return 1;
+        if (dateA > dateB) return -1;
+        return a.company.localeCompare(b.company);
+      });
 
-      // Update dropdown options
       generateMonthOptions();
       generateCompanyOptions();
 
       preview.innerHTML = "";
 
       if (!groupBy) {
-        labels.forEach(label => preview.appendChild(renderCard(label, false))); // Pass false for non-draggable cards
+        labels.forEach(label => preview.appendChild(renderCard(label, false)));
       } else {
-        // Group by month and company
         const grouped = {};
         labels.forEach(label => {
-          const month = label.date.slice(0, 7);
+          const month = label.date ? label.date.slice(0, 7) : 'Unknown Date';
           grouped[month] = grouped[month] || {};
           grouped[month][label.company] = grouped[month][label.company] || {};
           grouped[month][label.company][label.productCode] = grouped[month][label.company][label.productCode] || [];
@@ -861,15 +1193,15 @@
         Object.entries(grouped).sort().reverse().forEach(([month, companies]) => {
           const monthDiv = document.createElement("div");
           monthDiv.innerHTML = `<div class="group-header">📅 ${month}</div>`;
-          
+
           Object.entries(companies).sort().forEach(([company, parts]) => {
             const companyDiv = document.createElement("div");
             companyDiv.innerHTML = `<div class="group-subheader">🏢 ${company}</div>`;
-            
+
             Object.entries(parts).sort().forEach(([pn, items]) => {
               const partDiv = document.createElement("div");
-              partDiv.innerHTML = `<h5>Part Number: ${pn}</h5>`;
-              items.forEach(label => partDiv.appendChild(renderCard(label, false))); // Pass false for non-draggable cards
+              partDiv.innerHTML = `<h5>Product Code: ${pn}</h5>`;
+              items.forEach(label => partDiv.appendChild(renderCard(label, false)));
               companyDiv.appendChild(partDiv);
             });
             monthDiv.appendChild(companyDiv);
@@ -887,10 +1219,10 @@
       const div = document.createElement("div");
       div.className = draggable ? "draggable-card" : "label-card";
       div.setAttribute("draggable", draggable);
-      div.dataset.id = label.id; // Store ID for drag/drop and edit/delete
+      div.dataset.id = label.id;
 
-      // Determine the correct status class
       const statusClass = label.status ? label.status.toLowerCase().replace(/ /g, '-') : 'unknown-priority';
+      const lastUpdatedDate = label.lastUpdated ? new Date(label.lastUpdated).toLocaleString() : 'N/A';
 
       div.innerHTML = `
         <div class="card-header">
@@ -904,6 +1236,7 @@
         <small>Week: ${label.weekNumber} | Qty: ${label.quantity}</small><br>
         <small>Printed by: ${label.printedBy}</small><br>
         <small>Notes: ${label.notes}</small><br>
+        <div class="card-last-updated">Last Updated: ${lastUpdatedDate}</div>
         ${!draggable ? `
           <button data-id="${label.id}" class="editBtn">Edit</button>
           <button data-id="${label.id}" class="deleteBtn">Delete</button>
@@ -923,7 +1256,6 @@
       mediumCol.innerHTML = `<h3>🟡 Medium Priority</h3>`;
       lowCol.innerHTML = `<h3>🟢 Low Priority</h3>`;
 
-      // Set today's date in the header
       const today = new Date();
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
       const todayDateElement = document.querySelector(".today-date");
@@ -932,7 +1264,7 @@
       }
 
       labelsDatabase.forEach(label => {
-        const card = renderCard(label, true); // Render as draggable
+        const card = renderCard(label, true);
         if (label.status === "High Priority") {
           highCol.appendChild(card);
         } else if (label.status === "Medium Priority") {
@@ -950,10 +1282,9 @@
       const priorityColumns = document.querySelectorAll(".priority-column");
 
       draggables.forEach(card => {
-        card.addEventListener("dragstart", () => {
+        card.addEventListener("dragstart", (event) => {
           card.classList.add("dragging");
-          // Store the ID of the dragged item
-          event.dataTransfer.setData("text/plain", card.dataset.id); 
+          event.dataTransfer.setData("text/plain", card.dataset.id);
         });
 
         card.addEventListener("dragend", () => {
@@ -963,7 +1294,7 @@
 
       priorityColumns.forEach(column => {
         column.addEventListener("dragover", e => {
-          e.preventDefault(); // Allow drop
+          e.preventDefault();
           column.classList.add("drag-over");
         });
 
@@ -971,38 +1302,43 @@
           column.classList.remove("drag-over");
         });
 
-        column.addEventListener("drop", e => {
+        column.addEventListener("drop", async (e) => {
           e.preventDefault();
           column.classList.remove("drag-over");
-          
+
           const draggedId = e.dataTransfer.getData("text/plain");
           const draggedElement = document.querySelector(`[data-id="${draggedId}"]`);
-          
+
           if (draggedElement) {
-            column.appendChild(draggedElement);
-            // Update the status of the label in the database
+            // Update the status of the label in Firestore
             const newStatus = column.dataset.priority;
-            const labelIndex = labelsDatabase.findIndex(label => label.id === draggedId);
-            if (labelIndex !== -1) {
-              labelsDatabase[labelIndex].status = newStatus;
-              showMessage(`Label priority updated to ${newStatus}!`);
-              renderAllViews(); // Re-render to update the list view as well
+            const labelDocRef = doc(getLabelsCollectionRef(), draggedId);
+            showLoading("Updating priority...");
+            try {
+                await updateDoc(labelDocRef, { status: newStatus, lastUpdated: new Date().toISOString() });
+                showMessage(`Label priority updated to ${newStatus}!`);
+            } catch (error) {
+                showMessage("Error updating priority: " + error.message, true);
+                console.error("Error updating priority:", error);
+            } finally {
+                hideLoading();
             }
+            // renderAllViews will be called by the onSnapshot listener
           }
         });
       });
     }
 
     function renderAllViews() {
-      renderLabels(); // Render list view
-      renderPriorityBoard(); // Render priority board view
+      renderLabels();
+      renderPriorityBoard();
     }
 
-    // Initialize app when DOM is loaded
-    document.addEventListener('DOMContentLoaded', function() {
+    // Main Initialization Logic
+    document.addEventListener('DOMContentLoaded', async function() {
       // Theme toggle
       const toggleThemeBtn = document.getElementById('toggleTheme');
-      const savedTheme = 'dark'; // Default to dark for consistency in this example
+      const savedTheme = 'dark';
       document.body.className = savedTheme;
 
       toggleThemeBtn?.addEventListener('click', () => {
@@ -1013,15 +1349,57 @@
         }
       });
 
-      // Auto fill date and set default status
-      clearForm(); // Use clearForm to set default date and status
+      clearForm(); // Set default date and status
 
-      // Event listeners
+      // Firebase Authentication and Data Listener
+      showLoading("Authenticating...");
+      onAuthStateChanged(auth, async (user) => {
+          if (user) {
+              currentUserId = user.uid;
+              document.getElementById("currentUserId").textContent = currentUserId;
+              console.log("Authenticated with UID:", currentUserId);
+
+              // Setup Firestore listener after authentication
+              const labelsColRef = getLabelsCollectionRef();
+              if (labelsColRef) {
+                  showLoading("Loading labels...");
+                  onSnapshot(query(labelsColRef), (snapshot) => {
+                      labelsDatabase = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                      console.log("Labels updated from Firestore:", labelsDatabase);
+                      renderAllViews();
+                      hideLoading();
+                  }, (error) => {
+                      console.error("Error fetching labels from Firestore:", error);
+                      showMessage("Error loading labels: " + error.message, true);
+                      hideLoading();
+                  });
+              }
+          } else {
+              // Sign in anonymously if no user is logged in
+              try {
+                  if (initialAuthToken) {
+                      await signInWithCustomToken(auth, initialAuthToken);
+                  } else {
+                      await signInAnonymously(auth);
+                  }
+              } catch (error) {
+                  console.error("Error during Firebase authentication:", error);
+                  showMessage("Authentication failed: " + error.message, true);
+                  hideLoading();
+              }
+          }
+      });
+
+
+      // Event listeners for form actions
       const saveBtn = document.getElementById("saveBtn");
       const clearBtn = document.getElementById("clearBtn");
-      
+      const clearAllLabelsBtn = document.getElementById("clearAllLabelsBtn");
+
       if (saveBtn) saveBtn.addEventListener("click", saveLabel);
       if (clearBtn) clearBtn.addEventListener("click", clearForm);
+      if (clearAllLabelsBtn) clearAllLabelsBtn.addEventListener("click", clearAllLabels);
+
 
       // Edit and delete button handlers (delegated to document for dynamic elements)
       document.addEventListener("click", e => {
@@ -1030,11 +1408,8 @@
           const label = labelsDatabase.find(l => l.id === id);
           if (label) {
             fillForm({ id, ...label });
-            // Switch to the entry tab if editing
-            document.querySelector('.tab-btn[data-tab="list-view"]').classList.remove('active');
-            document.querySelector('.tab-content#list-view').classList.remove('active');
-            document.querySelector('.tab-btn[data-tab="entry-form"]').classList.add('active'); // Assuming an entry form tab will be added
-            document.querySelector('.tab-content#entry-form').classList.add('active');
+            // You might want to switch to the "Label Entry" tab here if it were a separate tab
+            // For now, it just populates the top form.
           }
         }
         if (e.target.classList.contains("deleteBtn")) {
@@ -1050,6 +1425,30 @@
         }
       });
 
+      // Search input handler
+      const searchInput = document.getElementById("searchLabels");
+      if (searchInput) {
+          searchInput.addEventListener("input", renderLabels); // Re-render on every input
+      }
+
+      // Clear filter buttons
+      document.querySelectorAll(".clear-filter-btn").forEach(button => {
+          button.addEventListener("click", (e) => {
+              const filterId = e.currentTarget.dataset.filterId;
+              const filterElement = document.getElementById(filterId);
+              if (filterElement) {
+                  if (filterElement.tagName === 'SELECT' && filterElement.multiple) {
+                      // For multi-select, deselect all options
+                      Array.from(filterElement.options).forEach(option => option.selected = false);
+                  } else {
+                      // For single select or text input, clear value
+                      filterElement.value = "";
+                  }
+                  renderLabels(); // Re-render after clearing filter
+              }
+          });
+      });
+
       // Tab functionality
       document.querySelectorAll(".tab-btn").forEach(button => {
         button.addEventListener("click", () => {
@@ -1060,7 +1459,6 @@
           const targetTab = button.dataset.tab;
           document.getElementById(targetTab).classList.add("active");
 
-          // Re-render relevant content when tab is switched
           if (targetTab === "list-view") {
             renderLabels();
           } else if (targetTab === "priority-board") {
@@ -1069,8 +1467,7 @@
         });
       });
 
-      // Initial render for all views
-      renderAllViews();
+      // Initial render will be triggered by onSnapshot after auth
     });
   </script>
 </body>
