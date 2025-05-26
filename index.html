@@ -607,41 +607,11 @@
     </div>
   </div>
 
-<script>
-  console.log("✅ App loaded!");
+  <script>
+    console.log("✅ App loaded!");
 
-  // --- START MODIFICATIONS FOR LOCALSTORAGE ---
-
-  // Key for localStorage
-  const LOCAL_STORAGE_KEY = "eliteLabelTrackerLabels";
-
-  // Function to load labels from localStorage
-  const loadLabelsFromLocalStorage = () => {
-    const storedLabels = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (storedLabels) {
-      try {
-        const parsedLabels = JSON.parse(storedLabels);
-        // Ensure IDs are strings for consistency with existing code
-        return parsedLabels.map(label => ({ ...label, id: String(label.id) }));
-      } catch (e) {
-        console.error("Error parsing labels from localStorage:", e);
-        return []; // Return empty array if parsing fails
-      }
-    }
-    return []; // Return empty array if no labels are stored
-  };
-
-  // Function to save labels to localStorage
-  const saveLabelsToLocalStorage = () => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(labelsDatabase));
-  };
-
-  // Initialize labelsDatabase: Try to load from localStorage first, otherwise use sample data.
-  let labelsDatabase = loadLabelsFromLocalStorage();
-
-  // If localStorage was empty, populate with sample data and save it there for the first time.
-  if (labelsDatabase.length === 0) {
-    labelsDatabase = [
+    // Simulated database using in-memory storage (since localStorage isn't available)
+    let labelsDatabase = [
       {
         id: "1",
         company: "AJ Power",
@@ -688,420 +658,420 @@
         status: "Low Priority"
       }
     ];
-    saveLabelsToLocalStorage(); // Save initial sample data to localStorage
-  }
 
-  // Determine the next available ID by finding the max existing ID + 1
-  let nextId = labelsDatabase.length > 0
-    ? Math.max(...labelsDatabase.map(label => parseInt(label.id))) + 1
-    : 1;
+    let nextId = 4; // Updated nextId after adding more sample data
 
-  // --- END MODIFICATIONS FOR LOCALSTORAGE ---
+    const formIds = [
+      "company", "date", "productCode", "batchNumber", "serialRange", "rev",
+      "cn", "weekNumber", "quantity", "printedBy", "notes", "status"
+    ];
 
-  const formIds = [
-    "company", "date", "productCode", "batchNumber", "serialRange", "rev",
-    "cn", "weekNumber", "quantity", "printedBy", "notes", "status"
-  ];
+    const getFormData = () => {
+      const data = {};
+      formIds.forEach(id => {
+        const element = document.getElementById(id);
+        data[id] = element ? element.value : "";
+      });
+      return data;
+    };
 
-  const getFormData = () => {
-    const data = {};
-    formIds.forEach(id => {
-      const element = document.getElementById(id);
-      data[id] = element ? element.value : "";
-    });
-    return data;
-  };
-
-  const fillForm = (data) => {
-    formIds.forEach(id => {
-      const element = document.getElementById(id);
-      if (element) {
-        element.value = data[id] || "";
-      }
-    });
-    const editModeElement = document.getElementById("editMode");
-    if (editModeElement) {
-      editModeElement.value = data.id || "";
-    }
-    const statusElement = document.getElementById("status");
-    if (statusElement && data.status) {
-      statusElement.value = data.status;
-    }
-  };
-
-  const clearForm = () => {
-    formIds.forEach(id => {
-      const element = document.getElementById(id);
-      if (element) {
-        element.value = "";
-      }
-    });
-    const editModeElement = document.getElementById("editMode");
-    if (editModeElement) {
-      editModeElement.value = "";
-    }
-
-    const dateElement = document.getElementById("date");
-    if (dateElement) {
-      dateElement.valueAsDate = new Date();
-    }
-
-    const statusElement = document.getElementById("status");
-    if (statusElement) {
-      statusElement.value = "High Priority";
-    }
-
-    showMessage("");
-  };
-
-  function saveLabel() {
-    const data = getFormData();
-
-    if (!data.company || !data.date || !data.productCode) {
-      showMessage("Company, Date, and Product Code are required.", true);
-      return;
-    }
-
-    const editId = document.getElementById("editMode").value;
-
-    try {
-      if (editId) {
-        const index = labelsDatabase.findIndex(label => label.id === editId);
-        if (index !== -1) {
-          labelsDatabase[index] = { ...labelsDatabase[index], ...data };
-          showMessage("Label updated!");
-        } else {
-          showMessage("Label not found for update.", true);
-          return;
+    const fillForm = (data) => {
+      formIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          element.value = data[id] || "";
         }
-      } else {
-        const newLabel = { id: nextId.toString(), ...data };
-        labelsDatabase.push(newLabel);
-        nextId++;
-        showMessage("Label saved!");
+      });
+      const editModeElement = document.getElementById("editMode");
+      if (editModeElement) {
+        editModeElement.value = data.id || "";
+      }
+      // Set status dropdown to match the label's status
+      const statusElement = document.getElementById("status");
+      if (statusElement && data.status) {
+        statusElement.value = data.status;
+      }
+    };
+
+    const clearForm = () => {
+      formIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          element.value = "";
+        }
+      });
+      const editModeElement = document.getElementById("editMode");
+      if (editModeElement) {
+        editModeElement.value = "";
+      }
+      
+      // Set default date to today
+      const dateElement = document.getElementById("date");
+      if (dateElement) {
+        dateElement.valueAsDate = new Date();
       }
 
-      // --- LOCALSTORAGE MODIFICATION: Save after any change ---
-      saveLabelsToLocalStorage();
-      // --- END LOCALSTORAGE MODIFICATION ---
+      // Set default status to High Priority
+      const statusElement = document.getElementById("status");
+      if (statusElement) {
+        statusElement.value = "High Priority";
+      }
+      
+      showMessage("");
+    };
 
-      clearForm();
-      renderAllViews();
-    } catch (e) {
-      showMessage("Error saving label: " + e.message, true);
-      console.error(e);
+    function showMessage(msg, isError = false) {
+      const el = document.getElementById("message");
+      if (el) {
+        el.textContent = msg;
+        el.className = isError ? "message-error" : "message-success";
+        if (msg) {
+          setTimeout(() => { 
+            el.textContent = ""; 
+            el.className = "";
+          }, 4000);
+        }
+      }
     }
-  }
 
-  function deleteLabel(id) {
-    if (confirm("Are you sure you want to delete this label?")) {
+    function saveLabel() {
+      const data = getFormData();
+      
+      // Validation
+      if (!data.company || !data.date || !data.productCode) {
+        showMessage("Company, Date, and Product Code are required.", true);
+        return;
+      }
+
+      const editId = document.getElementById("editMode").value;
+      
       try {
-        const index = labelsDatabase.findIndex(label => label.id === id);
-        if (index !== -1) {
-          labelsDatabase.splice(index, 1);
-          showMessage("Label deleted!");
-          // --- LOCALSTORAGE MODIFICATION: Save after any change ---
-          saveLabelsToLocalStorage();
-          // --- END LOCALSTORAGE MODIFICATION ---
-          renderAllViews();
+        if (editId) {
+          // Update existing label
+          const index = labelsDatabase.findIndex(label => label.id === editId);
+          if (index !== -1) {
+            labelsDatabase[index] = { ...labelsDatabase[index], ...data };
+            showMessage("Label updated!");
+          } else {
+            showMessage("Label not found for update.", true);
+            return;
+          }
         } else {
-          showMessage("Label not found for deletion.", true);
+          // Add new label
+          const newLabel = { id: nextId.toString(), ...data };
+          labelsDatabase.push(newLabel);
+          nextId++;
+          showMessage("Label saved!");
         }
+        
+        clearForm();
+        renderAllViews(); // Render both views after saving
       } catch (e) {
-        showMessage("Error deleting label: " + e.message, true);
+        showMessage("Error saving label: " + e.message, true);
         console.error(e);
       }
     }
-  }
 
-  function generateMonthOptions() {
-    const dropdown = document.getElementById("filterMonth");
-    if (!dropdown) return;
-
-    // Filter out labels with invalid dates before mapping
-    const validLabels = labelsDatabase.filter(label => label.date && !isNaN(new Date(label.date)));
-    const months = [...new Set(validLabels.map(label => label.date.slice(0, 7)))];
-    dropdown.innerHTML = '<option value="">Filter by Month</option>';
-    months.sort().forEach(month => {
-      const opt = document.createElement("option");
-      opt.value = month;
-      opt.textContent = month;
-      dropdown.appendChild(opt);
-    });
-  }
-
-  function generateCompanyOptions() {
-    const dropdown = document.getElementById("filterCompany");
-    if (!dropdown) return;
-
-    const companies = [...new Set(labelsDatabase.map(label => label.company))];
-    dropdown.innerHTML = '<option value="">Filter by Company</option>';
-    companies.sort().forEach(company => {
-      const opt = document.createElement("option");
-      opt.value = company;
-      opt.textContent = company;
-      dropdown.appendChild(opt);
-    });
-  }
-
-  function renderLabels() {
-    const preview = document.getElementById("labelPreview");
-    if (!preview) return;
-
-    const groupBy = document.getElementById("groupByToggle")?.checked || false;
-    const filterCompany = document.getElementById("filterCompany")?.value || "";
-    const filterStatus = document.getElementById("filterStatus")?.value || "";
-    const filterMonthSelect = document.getElementById("filterMonth");
-    const filterMonths = filterMonthSelect ?
-      Array.from(filterMonthSelect.selectedOptions).map(opt => opt.value) : [];
-
-    let labels = labelsDatabase.filter(l =>
-      (!filterCompany || l.company === filterCompany) &&
-      (!filterStatus || l.status === filterStatus) &&
-      (!filterMonths.length || (l.date && filterMonths.includes(l.date.slice(0, 7)))) // Added check for l.date
-    );
-
-    labels.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    generateMonthOptions();
-    generateCompanyOptions();
-
-    preview.innerHTML = "";
-
-    if (!groupBy) {
-      labels.forEach(label => preview.appendChild(renderCard(label, false)));
-    } else {
-      const grouped = {};
-      labels.forEach(label => {
-        const month = label.date ? label.date.slice(0, 7) : 'Unknown Date'; // Handle potentially missing date
-        grouped[month] = grouped[month] || {};
-        grouped[month][label.company] = grouped[month][label.company] || {};
-        grouped[month][label.company][label.productCode] = grouped[month][label.company][label.productCode] || [];
-        grouped[month][label.company][label.productCode].push(label);
-      });
-
-      Object.entries(grouped).sort().reverse().forEach(([month, companies]) => {
-        const monthDiv = document.createElement("div");
-        monthDiv.innerHTML = `<div class="group-header">📅 ${month}</div>`;
-
-        Object.entries(companies).sort().forEach(([company, parts]) => {
-          const companyDiv = document.createElement("div");
-          companyDiv.innerHTML = `<div class="group-subheader">🏢 ${company}</div>`;
-
-          Object.entries(parts).sort().forEach(([pn, items]) => {
-            const partDiv = document.createElement("div");
-            partDiv.innerHTML = `<h5>Part Number: ${pn}</h5>`;
-            items.forEach(label => partDiv.appendChild(renderCard(label, false)));
-            companyDiv.appendChild(partDiv);
-          });
-          monthDiv.appendChild(companyDiv);
-        });
-        preview.appendChild(monthDiv);
-      });
-    }
-
-    if (labels.length === 0) {
-      preview.innerHTML = "<p>No labels found matching the current filters.</p>";
-    }
-  }
-
-  function renderCard(label, draggable = true) {
-    const div = document.createElement("div");
-    div.className = draggable ? "draggable-card" : "label-card";
-    div.setAttribute("draggable", draggable);
-    div.dataset.id = label.id;
-
-    const statusClass = label.status ? label.status.toLowerCase().replace(/ /g, '-') : 'unknown-priority';
-
-    div.innerHTML = `
-      <div class="card-header">
-          <span class="card-company">${label.company}</span>
-          <span class="card-date">${label.date}</span>
-      </div>
-      <span class="tag ${statusClass}">${label.status}</span><br>
-      <div class="card-product">Product: ${label.productCode}</div>
-      <small>Batch: ${label.batchNumber} | Serial: ${label.serialRange}</small><br>
-      <small>Rev: ${label.rev} | CN: ${label.cn}</small><br>
-      <small>Week: ${label.weekNumber} | Qty: ${label.quantity}</small><br>
-      <small>Printed by: ${label.printedBy}</small><br>
-      <small>Notes: ${label.notes}</small><br>
-      ${!draggable ? `
-        <button data-id="${label.id}" class="editBtn">Edit</button>
-        <button data-id="${label.id}" class="deleteBtn">Delete</button>
-      ` : ''}
-    `;
-    return div;
-  }
-
-  function renderPriorityBoard() {
-    const highCol = document.querySelector(".high-priority-col");
-    const mediumCol = document.querySelector(".medium-priority-col");
-    const lowCol = document.querySelector(".low-priority-col");
-
-    if (!highCol || !mediumCol || !lowCol) return;
-
-    highCol.innerHTML = `<h3>🔴 High Priority</h3>`;
-    mediumCol.innerHTML = `<h3>🟡 Medium Priority</h3>`;
-    lowCol.innerHTML = `<h3>🟢 Low Priority</h3>`;
-
-    const today = new Date();
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const todayDateElement = document.querySelector(".today-date");
-    if (todayDateElement) {
-      todayDateElement.textContent = `Labels for Today: ${today.toLocaleDateString('en-US', options)}`;
-    }
-
-    labelsDatabase.forEach(label => {
-      const card = renderCard(label, true);
-      if (label.status === "High Priority") {
-        highCol.appendChild(card);
-      } else if (label.status === "Medium Priority") {
-        mediumCol.appendChild(card);
-      } else if (label.status === "Low Priority") {
-        lowCol.appendChild(card);
+    function deleteLabel(id) {
+      if (confirm("Are you sure you want to delete this label?")) {
+        try {
+          const index = labelsDatabase.findIndex(label => label.id === id);
+          if (index !== -1) {
+            labelsDatabase.splice(index, 1);
+            showMessage("Label deleted!");
+            renderAllViews(); // Render both views after deleting
+          } else {
+            showMessage("Label not found for deletion.", true);
+          }
+        } catch (e) {
+          showMessage("Error deleting label: " + e.message, true);
+          console.error(e);
+        }
       }
-    });
+    }
 
-    addDragDropListeners();
-  }
+    function generateMonthOptions() {
+      const dropdown = document.getElementById("filterMonth");
+      if (!dropdown) return;
+      
+      const months = [...new Set(labelsDatabase.map(label => label.date.slice(0, 7)))];
+      dropdown.innerHTML = '<option value="">Filter by Month</option>';
+      months.sort().forEach(month => {
+        const opt = document.createElement("option");
+        opt.value = month;
+        opt.textContent = month;
+        dropdown.appendChild(opt);
+      });
+    }
 
-  function addDragDropListeners() {
-    const draggables = document.querySelectorAll(".draggable-card");
-    const priorityColumns = document.querySelectorAll(".priority-column");
+    function generateCompanyOptions() {
+      const dropdown = document.getElementById("filterCompany");
+      if (!dropdown) return;
+      
+      const companies = [...new Set(labelsDatabase.map(label => label.company))];
+      dropdown.innerHTML = '<option value="">Filter by Company</option>';
+      companies.sort().forEach(company => {
+        const opt = document.createElement("option");
+        opt.value = company;
+        opt.textContent = company;
+        dropdown.appendChild(opt);
+      });
+    }
 
-    draggables.forEach(card => {
-      card.addEventListener("dragstart", (event) => {
-        card.classList.add("dragging");
-        event.dataTransfer.setData("text/plain", card.dataset.id);
+    function renderLabels() {
+      const preview = document.getElementById("labelPreview");
+      if (!preview) return;
+      
+      const groupBy = document.getElementById("groupByToggle")?.checked || false;
+      const filterCompany = document.getElementById("filterCompany")?.value || "";
+      const filterStatus = document.getElementById("filterStatus")?.value || "";
+      const filterMonthSelect = document.getElementById("filterMonth");
+      const filterMonths = filterMonthSelect ? 
+        Array.from(filterMonthSelect.selectedOptions).map(opt => opt.value) : [];
+
+      // Filter labels
+      let labels = labelsDatabase.filter(l => 
+        (!filterCompany || l.company === filterCompany) &&
+        (!filterStatus || l.status === filterStatus) &&
+        (!filterMonths.length || filterMonths.includes(l.date.slice(0, 7)))
+      );
+
+      // Sort by date (newest first)
+      labels.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      // Update dropdown options
+      generateMonthOptions();
+      generateCompanyOptions();
+
+      preview.innerHTML = "";
+
+      if (!groupBy) {
+        labels.forEach(label => preview.appendChild(renderCard(label, false))); // Pass false for non-draggable cards
+      } else {
+        // Group by month and company
+        const grouped = {};
+        labels.forEach(label => {
+          const month = label.date.slice(0, 7);
+          grouped[month] = grouped[month] || {};
+          grouped[month][label.company] = grouped[month][label.company] || {};
+          grouped[month][label.company][label.productCode] = grouped[month][label.company][label.productCode] || [];
+          grouped[month][label.company][label.productCode].push(label);
+        });
+
+        Object.entries(grouped).sort().reverse().forEach(([month, companies]) => {
+          const monthDiv = document.createElement("div");
+          monthDiv.innerHTML = `<div class="group-header">📅 ${month}</div>`;
+          
+          Object.entries(companies).sort().forEach(([company, parts]) => {
+            const companyDiv = document.createElement("div");
+            companyDiv.innerHTML = `<div class="group-subheader">🏢 ${company}</div>`;
+            
+            Object.entries(parts).sort().forEach(([pn, items]) => {
+              const partDiv = document.createElement("div");
+              partDiv.innerHTML = `<h5>Part Number: ${pn}</h5>`;
+              items.forEach(label => partDiv.appendChild(renderCard(label, false))); // Pass false for non-draggable cards
+              companyDiv.appendChild(partDiv);
+            });
+            monthDiv.appendChild(companyDiv);
+          });
+          preview.appendChild(monthDiv);
+        });
+      }
+
+      if (labels.length === 0) {
+        preview.innerHTML = "<p>No labels found matching the current filters.</p>";
+      }
+    }
+
+    function renderCard(label, draggable = true) {
+      const div = document.createElement("div");
+      div.className = draggable ? "draggable-card" : "label-card";
+      div.setAttribute("draggable", draggable);
+      div.dataset.id = label.id; // Store ID for drag/drop and edit/delete
+
+      // Determine the correct status class
+      const statusClass = label.status ? label.status.toLowerCase().replace(/ /g, '-') : 'unknown-priority';
+
+      div.innerHTML = `
+        <div class="card-header">
+            <span class="card-company">${label.company}</span>
+            <span class="card-date">${label.date}</span>
+        </div>
+        <span class="tag ${statusClass}">${label.status}</span><br>
+        <div class="card-product">Product: ${label.productCode}</div>
+        <small>Batch: ${label.batchNumber} | Serial: ${label.serialRange}</small><br>
+        <small>Rev: ${label.rev} | CN: ${label.cn}</small><br>
+        <small>Week: ${label.weekNumber} | Qty: ${label.quantity}</small><br>
+        <small>Printed by: ${label.printedBy}</small><br>
+        <small>Notes: ${label.notes}</small><br>
+        ${!draggable ? `
+          <button data-id="${label.id}" class="editBtn">Edit</button>
+          <button data-id="${label.id}" class="deleteBtn">Delete</button>
+        ` : ''}
+      `;
+      return div;
+    }
+
+    function renderPriorityBoard() {
+      const highCol = document.querySelector(".high-priority-col");
+      const mediumCol = document.querySelector(".medium-priority-col");
+      const lowCol = document.querySelector(".low-priority-col");
+
+      if (!highCol || !mediumCol || !lowCol) return;
+
+      highCol.innerHTML = `<h3>🔴 High Priority</h3>`;
+      mediumCol.innerHTML = `<h3>🟡 Medium Priority</h3>`;
+      lowCol.innerHTML = `<h3>🟢 Low Priority</h3>`;
+
+      // Set today's date in the header
+      const today = new Date();
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      const todayDateElement = document.querySelector(".today-date");
+      if (todayDateElement) {
+        todayDateElement.textContent = `Labels for Today: ${today.toLocaleDateString('en-US', options)}`;
+      }
+
+      labelsDatabase.forEach(label => {
+        const card = renderCard(label, true); // Render as draggable
+        if (label.status === "High Priority") {
+          highCol.appendChild(card);
+        } else if (label.status === "Medium Priority") {
+          mediumCol.appendChild(card);
+        } else if (label.status === "Low Priority") {
+          lowCol.appendChild(card);
+        }
       });
 
-      card.addEventListener("dragend", () => {
-        card.classList.remove("dragging");
+      addDragDropListeners();
+    }
+
+    function addDragDropListeners() {
+      const draggables = document.querySelectorAll(".draggable-card");
+      const priorityColumns = document.querySelectorAll(".priority-column");
+
+      draggables.forEach(card => {
+        card.addEventListener("dragstart", () => {
+          card.classList.add("dragging");
+          // Store the ID of the dragged item
+          event.dataTransfer.setData("text/plain", card.dataset.id); 
+        });
+
+        card.addEventListener("dragend", () => {
+          card.classList.remove("dragging");
+        });
       });
-    });
 
-    priorityColumns.forEach(column => {
-      column.addEventListener("dragover", e => {
-        e.preventDefault();
-        column.classList.add("drag-over");
+      priorityColumns.forEach(column => {
+        column.addEventListener("dragover", e => {
+          e.preventDefault(); // Allow drop
+          column.classList.add("drag-over");
+        });
+
+        column.addEventListener("dragleave", () => {
+          column.classList.remove("drag-over");
+        });
+
+        column.addEventListener("drop", e => {
+          e.preventDefault();
+          column.classList.remove("drag-over");
+          
+          const draggedId = e.dataTransfer.getData("text/plain");
+          const draggedElement = document.querySelector(`[data-id="${draggedId}"]`);
+          
+          if (draggedElement) {
+            column.appendChild(draggedElement);
+            // Update the status of the label in the database
+            const newStatus = column.dataset.priority;
+            const labelIndex = labelsDatabase.findIndex(label => label.id === draggedId);
+            if (labelIndex !== -1) {
+              labelsDatabase[labelIndex].status = newStatus;
+              showMessage(`Label priority updated to ${newStatus}!`);
+              renderAllViews(); // Re-render to update the list view as well
+            }
+          }
+        });
+      });
+    }
+
+    function renderAllViews() {
+      renderLabels(); // Render list view
+      renderPriorityBoard(); // Render priority board view
+    }
+
+    // Initialize app when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Theme toggle
+      const toggleThemeBtn = document.getElementById('toggleTheme');
+      const savedTheme = 'dark'; // Default to dark for consistency in this example
+      document.body.className = savedTheme;
+
+      toggleThemeBtn?.addEventListener('click', () => {
+        if (document.body.classList.contains('dark')) {
+          document.body.className = 'light';
+        } else {
+          document.body.className = 'dark';
+        }
       });
 
-      column.addEventListener("dragleave", () => {
-        column.classList.remove("drag-over");
-      });
+      // Auto fill date and set default status
+      clearForm(); // Use clearForm to set default date and status
 
-      column.addEventListener("drop", e => {
-        e.preventDefault();
-        column.classList.remove("drag-over");
+      // Event listeners
+      const saveBtn = document.getElementById("saveBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      
+      if (saveBtn) saveBtn.addEventListener("click", saveLabel);
+      if (clearBtn) clearBtn.addEventListener("click", clearForm);
 
-        const draggedId = e.dataTransfer.getData("text/plain");
-        const draggedElement = document.querySelector(`[data-id="${draggedId}"]`);
-
-        if (draggedElement) {
-          // Find the label in the database and update its status
-          const newStatus = column.dataset.priority;
-          const labelIndex = labelsDatabase.findIndex(label => label.id === draggedId);
-          if (labelIndex !== -1) {
-            labelsDatabase[labelIndex].status = newStatus;
-            showMessage(`Label priority updated to ${newStatus}!`);
-
-            // --- LOCALSTORAGE MODIFICATION: Save after drag-drop ---
-            saveLabelsToLocalStorage();
-            // --- END LOCALSTORAGE MODIFICATION ---
-
-            renderAllViews(); // Re-render all views to reflect the change
+      // Edit and delete button handlers (delegated to document for dynamic elements)
+      document.addEventListener("click", e => {
+        if (e.target.classList.contains("editBtn")) {
+          const id = e.target.dataset.id;
+          const label = labelsDatabase.find(l => l.id === id);
+          if (label) {
+            fillForm({ id, ...label });
+            // Switch to the entry tab if editing
+            document.querySelector('.tab-btn[data-tab="list-view"]').classList.remove('active');
+            document.querySelector('.tab-content#list-view').classList.remove('active');
+            document.querySelector('.tab-btn[data-tab="entry-form"]').classList.add('active'); // Assuming an entry form tab will be added
+            document.querySelector('.tab-content#entry-form').classList.add('active');
           }
         }
-      });
-    });
-  }
-
-  function renderAllViews() {
-    renderLabels();
-    renderPriorityBoard();
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    const toggleThemeBtn = document.getElementById('toggleTheme');
-    const savedTheme = 'dark';
-    document.body.className = savedTheme;
-
-    toggleThemeBtn?.addEventListener('click', () => {
-      if (document.body.classList.contains('dark')) {
-        document.body.className = 'light';
-      } else {
-        document.body.className = 'dark';
-      }
-    });
-
-    clearForm();
-
-    const saveBtn = document.getElementById("saveBtn");
-    const clearBtn = document.getElementById("clearBtn");
-
-    if (saveBtn) saveBtn.addEventListener("click", saveLabel);
-    if (clearBtn) clearBtn.addEventListener("click", clearForm);
-
-    document.addEventListener("click", e => {
-      if (e.target.classList.contains("editBtn")) {
-        const id = e.target.dataset.id;
-        const label = labelsDatabase.find(l => l.id === id);
-        if (label) {
-          fillForm({ id, ...label });
-          // Ensure tab switches to entry form if editing from list view
-          document.querySelector('.tab-btn[data-tab="list-view"]').classList.remove('active');
-          document.querySelector('.tab-content#list-view').classList.remove('active');
-          document.querySelector('.tab-btn[data-tab="entry-form"]').classList.add('active'); // This 'entry-form' tab doesn't exist yet, should be the main container
-          document.querySelector('.tab-content#entry-form').classList.add('active'); // Corrected below for the primary container
-        }
-      }
-      if (e.target.classList.contains("deleteBtn")) {
-        deleteLabel(e.target.dataset.id);
-      }
-    });
-
-    // Correcting the tab switch for edit button if needed:
-    // This assumes the main form is directly visible or is within the first tab.
-    // If you want to switch to the first container (label entry) when editing:
-    document.addEventListener("click", e => {
-        if (e.target.classList.contains("editBtn")) {
-            const id = e.target.dataset.id;
-            const label = labelsDatabase.find(l => l.id === id);
-            if (label) {
-                fillForm({ id, ...label });
-                // Assuming the label entry form is not in a specific tab, but at the top
-                // If it IS in a tab, you'd need to activate that tab.
-                // For now, let's assume it's just meant to fill the top form.
-            }
-        }
-    });
-
-
-    ["filterCompany", "filterMonth", "filterStatus", "groupByToggle"].forEach(id => {
-      const element = document.getElementById(id);
-      if (element) {
-        element.addEventListener("change", renderLabels);
-      }
-    });
-
-    document.querySelectorAll(".tab-btn").forEach(button => {
-      button.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
-        document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
-
-        button.classList.add("active");
-        const targetTab = button.dataset.tab;
-        document.getElementById(targetTab).classList.add("active");
-
-        if (targetTab === "list-view") {
-          renderLabels();
-        } else if (targetTab === "priority-board") {
-          renderPriorityBoard();
+        if (e.target.classList.contains("deleteBtn")) {
+          deleteLabel(e.target.dataset.id);
         }
       });
-    });
 
-    // Initial render for all views
-    renderAllViews();
-  });
-</script>
+      // Filter change handlers
+      ["filterCompany", "filterMonth", "filterStatus", "groupByToggle"].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          element.addEventListener("change", renderLabels);
+        }
+      });
+
+      // Tab functionality
+      document.querySelectorAll(".tab-btn").forEach(button => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+          document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+
+          button.classList.add("active");
+          const targetTab = button.dataset.tab;
+          document.getElementById(targetTab).classList.add("active");
+
+          // Re-render relevant content when tab is switched
+          if (targetTab === "list-view") {
+            renderLabels();
+          } else if (targetTab === "priority-board") {
+            renderPriorityBoard();
+          }
+        });
+      });
+
+      // Initial render for all views
+      renderAllViews();
+    });
+  </script>
+</body>
+</html>
